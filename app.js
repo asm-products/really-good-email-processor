@@ -8,6 +8,9 @@ var app = express();
 app.use(logger('dev'));
 app.use(bodyParser());
 
+// set config vars
+require('./config')(app);
+
 // create a store that holds html until rendering
 app.store = {};
 
@@ -27,6 +30,9 @@ phantom.create(function (ph) {
     app.phantom._instance.exit();
   });
 });
+
+// phantomjs assets load workaround
+require('./asset-loader')(app);
 
 // route that listens to mailgun
 require('./process')(app);
