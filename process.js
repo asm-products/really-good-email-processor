@@ -1,3 +1,6 @@
+var url = require('url'),
+    request = require('request');
+
 module.exports = function (app) {
   app.post('/process', function (req, res, next) {
     
@@ -21,11 +24,19 @@ module.exports = function (app) {
     // [1] -> forwarded message info
     // [2] -> forwarded mail
 
+    // get mail content
+    var html = matches[2].trim();
+
+    // proxify urls
+    html = html.replace(/src="(.*?)"/g, function (match, url) {
+      return 'src="' + app.proxify(url) + '"';
+    })
+
     // save html to store
-    app.store[id] = matches[2].trim();
+    app.store[id] = html;
 
     // get additional data from email
-    var parse_data_regex = /From: <b class="gmail_sendername">(.*)<\/b>.*?<a href="mailto:(.*?)@(.*?)".*Subject: (.*?)<br>/;
+    var parse_data_regex = /From: <b class="gmail_sendername">(.*?)<\/b>.*?<a href="mailto:(.*?)@(.*?)".*Subject: (.*?)<br>/;
 
     // run regex on message info part
     var message_data = parse_data_regex.exec(matches[1]);
@@ -50,18 +61,18 @@ module.exports = function (app) {
     // render using phantom
     app.phantom.run(function (ph) {
       ph.createPage(function (page) {
-        page.open('http://localhost:' + app.get('port') + '/output/' + id, function (status) {
+        page.open(app.get('url') + ':' + app.get('port') + '/output/' + id, function (status) {
           // get rendered image as base64
           page.renderBase64('PNG', function (base64) {
             // add base64 to data
             data.image = base64;
-  
-            // TODO: send as JSON to configured url
-            console.log(data);
-  
-            // debug
-            page.render('test.png', function () {});
-  
+
+            // get request destination
+            var destination = app.get('destination_url');
+
+            // make request
+            request.post(destination, {form: data});
+
             res.send(200);
           });
         });
